@@ -1,35 +1,100 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useState, useEffect, useCallback } from 'react';
+import { ChatMessage, AIProvider, FileAttachment, AppSettings } from './types';
+import { ChatInput } from './components/ChatInput';
+import { MessageList } from './components/ChatMessage';
+import { Settings } from './components/Settings';
+import { storageService } from './services/storage';
+import { aiService } from './services/aiService';
+import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [currentProvider, setCurrentProvider] = useState<AIProvider>('openai');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+
+  useEffect(() => { initApp(); }, []);
+
+  const initApp = async () => {
+    await storageService.init();
+    const s = await storageService.getSettings();
+    setSettings(s);
+    setCurrentProvider(s.defaultProvider);
+  };
+
+  const handleSend = useCallback(async (content: string, attachments?: FileAttachment[]) => {
+    if (!content.trim() && !attachments?.length) return;
+
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content,
+      timestamp: Date.now(),
+      attachments
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+    setStreamingContent('');
+
+    const chatHistory = [...messages, userMessage];
+    
+    try {
+      const config = settings?.providers[currentProvider];
+      if (!config) throw new Error('Provider not configured');
+
+      const response = await aiService.chat(currentProvider, config, chatHistory, {
+        stream: true,
+        onChunk: (chunk) => setStreamingContent(prev => prev + chunk)
+      });
+
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: response.content,
+        timestamp: Date.now()
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error: any) {
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'system',
+        content: `Error: ${error.message}`,
+        timestamp: Date.now()
+      }]);
+    } finally {
+      setIsLoading(false);
+      setStreamingContent('');
+    }
+  }, [messages, currentProvider, settings]);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <div className="app">
+      <header className="app-header">
+        <div className="header-left">
+          <h1>SteroidChat</h1>
+          <span className="provider-badge">{aiService.getProviderDisplayName(currentProvider)}</span>
+        </div>
+        <div className="header-right">
+          <button className="header-button" onClick={() => setMessages([])} title="New Chat">+</button>
+          <button className="header-button" onClick={() => setSettingsOpen(true)} title="Settings">*</button>
+        </div>
+      </header>
+
+      <main className="app-main">
+        <MessageList messages={streamingContent ? [...messages, { id: 'streaming', role: 'assistant', content: streamingContent, timestamp: Date.now() }] : messages} />
+      </main>
+
+      <footer className="app-footer">
+        <ChatInput onSend={handleSend} onProviderChange={setCurrentProvider} currentProvider={currentProvider} disabled={isLoading} />
+      </footer>
+
+      <Settings isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    </div>
+  );
 }
 
-export default App
+export default App;

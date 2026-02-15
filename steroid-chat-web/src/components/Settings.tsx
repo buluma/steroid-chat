@@ -26,8 +26,39 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   const [testingProvider, setTestingProvider] = useState<AIProvider | null>(null);
   const [testResult, setTestResult] = useState<{ provider: AIProvider; success: boolean; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loadingModels, setLoadingModels] = useState<Record<AIProvider, boolean>>({});
+  const [providerModels, setProviderModels] = useState<Record<AIProvider, string[]>>({});
+  const [providerErrors, setProviderErrors] = useState<Record<AIProvider, string>>({});
 
-  useEffect(() => { if (isOpen) loadSettings(); }, [isOpen]);
+  useEffect(() => {
+    if (isOpen) {
+      loadSettings();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (settings) {
+      // Load models for each provider when settings change
+      PROVIDERS.forEach(async (p) => {
+        if (p.hasModel) {
+          setLoadingModels(prev => ({ ...prev, [p.key]: true }));
+          setProviderErrors(prev => ({ ...prev, [p.key]: '' })); // Clear previous error
+          try {
+            const config = settings.providers[p.key];
+            const models = await aiService.getProviderModels(p.key, config);
+            setProviderModels(prev => ({ ...prev, [p.key]: models }));
+            setProviderErrors(prev => ({ ...prev, [p.key]: '' })); // Clear error on success
+          } catch (error: any) {
+            console.error(`Error loading models for ${p.name}:`, error);
+            setProviderErrors(prev => ({ ...prev, [p.key]: error.message }));
+            setProviderModels(prev => ({ ...prev, [p.key]: [] })); // Set empty array on error
+          } finally {
+            setLoadingModels(prev => ({ ...prev, [p.key]: false }));
+          }
+        }
+      });
+    }
+  }, [settings]);
 
   const loadSettings = async () => {
     const s = await storageService.getSettings();
@@ -36,7 +67,27 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
 
   const handleApiKeyChange = (provider: AIProvider, apiKey: string) => {
     if (!settings) return;
-    setSettings({ ...settings, providers: { ...settings.providers, [provider]: { ...settings.providers[provider], apiKey } } });
+    const updatedSettings = { ...settings, providers: { ...settings.providers, [provider]: { ...settings.providers[provider], apiKey } } };
+    setSettings(updatedSettings);
+
+    // Reload models for this provider after API key change
+    if (PROVIDERS.find(p => p.key === provider)?.hasModel) {
+      setLoadingModels(prev => ({ ...prev, [provider]: true }));
+      setProviderErrors(prev => ({ ...prev, [provider]: '' })); // Clear previous error
+      aiService.getProviderModels(provider, { ...settings.providers[provider], apiKey })
+        .then(models => {
+          setProviderModels(prev => ({ ...prev, [provider]: models }));
+          setProviderErrors(prev => ({ ...prev, [provider]: '' })); // Clear error on success
+        })
+        .catch((error: any) => {
+          console.error(`Error loading models for ${provider}:`, error);
+          setProviderErrors(prev => ({ ...prev, [provider]: error.message }));
+          setProviderModels(prev => ({ ...prev, [provider]: [] })); // Set empty array on error
+        })
+        .finally(() => {
+          setLoadingModels(prev => ({ ...prev, [provider]: false }));
+        });
+    }
   };
 
   const handleModelChange = (provider: AIProvider, model: string) => {
@@ -46,7 +97,27 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
 
   const handleBaseUrlChange = (provider: AIProvider, baseUrl: string) => {
     if (!settings) return;
-    setSettings({ ...settings, providers: { ...settings.providers, [provider]: { ...settings.providers[provider], baseUrl } } });
+    const updatedSettings = { ...settings, providers: { ...settings.providers, [provider]: { ...settings.providers[provider], baseUrl } } };
+    setSettings(updatedSettings);
+
+    // Reload models for this provider after base URL change (for Ollama and LM Studio)
+    if ((provider === 'ollama' || provider === 'lmstudio') && PROVIDERS.find(p => p.key === provider)?.hasModel) {
+      setLoadingModels(prev => ({ ...prev, [provider]: true }));
+      setProviderErrors(prev => ({ ...prev, [provider]: '' })); // Clear previous error
+      aiService.getProviderModels(provider, { ...settings.providers[provider], baseUrl })
+        .then(models => {
+          setProviderModels(prev => ({ ...prev, [provider]: models }));
+          setProviderErrors(prev => ({ ...prev, [provider]: '' })); // Clear error on success
+        })
+        .catch((error: any) => {
+          console.error(`Error loading models for ${provider}:`, error);
+          setProviderErrors(prev => ({ ...prev, [provider]: error.message }));
+          setProviderModels(prev => ({ ...prev, [provider]: [] })); // Set empty array on error
+        })
+        .finally(() => {
+          setLoadingModels(prev => ({ ...prev, [provider]: false }));
+        });
+    }
   };
 
   const handleSave = async () => {
@@ -65,6 +136,25 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     const success = await aiService.testConnection(provider, config);
     setTestResult({ provider, success, message: success ? 'Connection successful!' : 'Connection failed. Check your settings.' });
     setTestingProvider(null);
+
+    // Reload models after successful connection test
+    if (success && PROVIDERS.find(p => p.key === provider)?.hasModel) {
+      setLoadingModels(prev => ({ ...prev, [provider]: true }));
+      setProviderErrors(prev => ({ ...prev, [provider]: '' })); // Clear previous error
+      aiService.getProviderModels(provider, config)
+        .then(models => {
+          setProviderModels(prev => ({ ...prev, [provider]: models }));
+          setProviderErrors(prev => ({ ...prev, [provider]: '' })); // Clear error on success
+        })
+        .catch((error: any) => {
+          console.error(`Error loading models for ${provider}:`, error);
+          setProviderErrors(prev => ({ ...prev, [provider]: error.message }));
+          setProviderModels(prev => ({ ...prev, [provider]: [] })); // Set empty array on error
+        })
+        .finally(() => {
+          setLoadingModels(prev => ({ ...prev, [provider]: false }));
+        });
+    }
   };
 
   if (!isOpen || !settings) return null;
@@ -93,7 +183,27 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                   </div>
                   {testResult?.provider === p.key && <div className={`test-result ${testResult.success ? 'success' : 'error'}`}>{testResult.message}</div>}
                   {p.hasApiKey && <div className="setting-field"><label>API Key</label><input type="password" value={settings.providers[p.key].apiKey} onChange={e => handleApiKeyChange(p.key, e.target.value)} placeholder={`Enter ${p.name} API key`} /></div>}
-                  {p.hasModel && <div className="setting-field"><label>Model</label><select value={settings.providers[p.key].model} onChange={e => handleModelChange(p.key, e.target.value)}>{aiService.getProviderModels(p.key).map(m => <option key={m} value={m}>{m}</option>)}</select></div>}
+                  {p.hasModel && (
+                    <div className="setting-field">
+                      <label>Model</label>
+                      {loadingModels[p.key] ? (
+                        <select disabled>
+                          <option>Loading...</option>
+                        </select>
+                      ) : providerErrors[p.key] ? (
+                        <div className="model-error">
+                          <select disabled>
+                            <option>Error loading models</option>
+                          </select>
+                          <div className="error-message">{providerErrors[p.key]}</div>
+                        </div>
+                      ) : (
+                        <select value={settings.providers[p.key].model} onChange={e => handleModelChange(p.key, e.target.value)}>
+                          {(providerModels[p.key] || []).map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      )}
+                    </div>
+                  )}
                   {p.hasBaseUrl && <div className="setting-field"><label>Base URL</label><input type="text" value={settings.providers[p.key].baseUrl || ''} onChange={e => handleBaseUrlChange(p.key, e.target.value)} placeholder="http://localhost:11434" /></div>}
                 </div>
               ))}

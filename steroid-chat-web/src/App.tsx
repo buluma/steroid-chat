@@ -9,11 +9,13 @@ import './App.css';
 
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [currentProvider, setCurrentProvider] = useState<AIProvider>('openai');
+  const [currentProvider, setCurrentProvider] = useState<AIProvider>('openai'); // Default value will be overridden by useEffect
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => { initApp(); }, []);
 
@@ -22,10 +24,11 @@ function App() {
     const s = await storageService.getSettings();
     setSettings(s);
     setCurrentProvider(s.defaultProvider);
+    setIsInitialized(true);
   };
 
   const handleSend = useCallback(async (content: string, attachments?: FileAttachment[]) => {
-    if (!content.trim() && !attachments?.length) return;
+    if (!content.trim() && !attachments?.length || !isInitialized || !settings) return;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -38,16 +41,31 @@ function App() {
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
     setStreamingContent('');
+    setStreamingMessage(null);
 
     const chatHistory = [...messages, userMessage];
-    
+
     try {
-      const config = settings?.providers[currentProvider];
+      const config = settings.providers[currentProvider];
       if (!config) throw new Error('Provider not configured');
+
+      // Create a streaming message with a stable ID and timestamp
+      const streamingMsgId = 'streaming-' + crypto.randomUUID();
+      const streamingTimestamp = Date.now();
+      
+      setStreamingMessage({
+        id: streamingMsgId,
+        role: 'assistant',
+        content: '',
+        timestamp: streamingTimestamp
+      });
 
       const response = await aiService.chat(currentProvider, config, chatHistory, {
         stream: true,
-        onChunk: (chunk) => setStreamingContent(prev => prev + chunk)
+        onChunk: (chunk) => {
+          setStreamingContent(prev => prev + chunk);
+          setStreamingMessage(prev => prev ? { ...prev, content: prev.content + chunk } : null);
+        }
       });
 
       const assistantMessage: ChatMessage = {
@@ -68,8 +86,17 @@ function App() {
     } finally {
       setIsLoading(false);
       setStreamingContent('');
+      setStreamingMessage(null);
     }
-  }, [messages, currentProvider, settings]);
+  }, [messages, currentProvider, settings, isInitialized]);
+
+  if (!isInitialized || !settings) {
+    return (
+      <div className="app">
+        <div className="app-loading">Loading SteroidChat...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -85,7 +112,7 @@ function App() {
       </header>
 
       <main className="app-main">
-        <MessageList messages={streamingContent ? [...messages, { id: 'streaming', role: 'assistant', content: streamingContent, timestamp: Date.now() }] : messages} />
+        <MessageList messages={streamingMessage ? [...messages, streamingMessage] : messages} />
       </main>
 
       <footer className="app-footer">

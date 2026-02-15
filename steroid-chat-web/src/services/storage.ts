@@ -1,7 +1,7 @@
 import { AIProvider, ProviderConfig, AppSettings } from '../types';
 
 const DEFAULT_SETTINGS: AppSettings = {
-  defaultProvider: 'openai',
+  defaultProvider: 'ollama',
   providers: {
     openai: { provider: 'openai', apiKey: 'YOUR_OPENAI_API_KEY', model: 'gpt-4o' },
     grok: { provider: 'grok', apiKey: 'YOUR_GROK_API_KEY', model: 'grok-2-1212' },

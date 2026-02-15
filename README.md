@@ -38,26 +38,26 @@ SteroidChat allows you to chat with various AI models from different providers t
 
 ```
 steroid-chat/
-├── steroid-chat-web/           # React web application source
+├── steroid-chat-web/              # React web application source
 │   ├── src/
-│   │   ├── components/         # React UI components
-│   │   │   ├── ChatInput.tsx   # Message input & file attachment
-│   │   │   ├── ChatMessage.tsx # Message display
-│   │   │   └── Settings.tsx   # Configuration panel
-│   │   ├── services/          # Business logic
-│   │   │   ├── aiService.ts   # AI provider integration
-│   │   │   ├── fileProcessing.ts # File handling
-│   │   │   └── storage.ts    # Local storage
-│   │   ├── types/             # TypeScript definitions
-│   │   ├── App.tsx           # Main application
-│   │   └── App.css           # Styles
-│   └── dist/                  # Built web assets
+│   │   ├── components/            # React UI components
+│   │   │   ├── ChatInput.tsx      # Message input & file attachment
+│   │   │   ├── ChatMessage.tsx    # Message display
+│   │   │   └── Settings.tsx       # Configuration panel
+│   │   ├── services/              # Business logic
+│   │   │   ├── aiService.ts       # AI provider integration
+│   │   │   ├── fileProcessing.ts  # File handling
+│   │   │   └── storage.ts         # Local storage
+│   │   ├── types/                 # TypeScript definitions
+│   │   ├── App.tsx                # Main application
+│   │   └── App.css                # Styles
+│   └── dist/                      # Built web assets
 │
-└── steroid-chat-cordova/      # Cordova mobile app
-    ├── www/                   # Web assets for mobile
-    ├── platforms/             # Mobile platform files
-    ├── plugins/               # Cordova plugins
-    └── config.xml            # App configuration
+└── steroid-chat-cordova/          # Cordova mobile app
+    ├── www/                       # Web assets for mobile
+    ├── platforms/                 # Mobile platform files
+    ├── plugins/                   # Cordova plugins
+    └── config.xml                 # App configuration
 ```
 
 ## Installation

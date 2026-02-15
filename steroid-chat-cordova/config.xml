@@ -29,5 +29,5 @@
     
     <preference name="Orientation" value="default" />
     <preference name="DisallowOverscroll" value="true" />
-    <preference name="BackgroundColor" value="0xffffffff" />
+    <preference name="BackgroundColor" value="#ffffff" />
 </widget>

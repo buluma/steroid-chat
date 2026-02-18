@@ -46,6 +46,7 @@ html, body, #root { height: 100%; font-family: -apple-system, BlinkMacSystemFont
 .header-right { display: flex; gap: 8px; }
 .header-button { width: 36px; height: 36px; border: none; background: var(--surface-secondary); border-radius: 8px; cursor: pointer; font-size: 16px; transition: background 0.2s; }
 .header-button:hover { background: var(--primary-color); color: white; }
+.header-button-test { font-weight: 700; }
 
 .app-main { flex: 1; overflow-y: auto; padding: 16px; }
 .app-footer { background: var(--surface); border-top: 1px solid var(--border-color); }

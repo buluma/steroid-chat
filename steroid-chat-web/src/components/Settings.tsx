@@ -16,9 +16,17 @@ const PROVIDERS: { key: AIProvider; name: string; hasApiKey: boolean; hasModel: 
   { key: 'ollama', name: 'Ollama (Local)', hasApiKey: false, hasModel: true, hasBaseUrl: true },
   { key: 'deepseek', name: 'DeepSeek', hasApiKey: true, hasModel: true, hasBaseUrl: false },
   { key: 'mistral', name: 'Mistral AI', hasApiKey: true, hasModel: true, hasBaseUrl: false },
-  { key: 'together', name: 'Together AI', hasApiKey: true, hasModel: true, hasBaseUrl: false },
-  { key: 'lmstudio', name: 'LM Studio (Local)', hasApiKey: false, hasModel: true, hasBaseUrl: true }
+  { key: 'together', name: 'Together AI', hasApiKey: true, hasModel: true, hasBaseUrl: false }
 ];
+
+const shouldLoadModels = (
+  provider: { key: AIProvider; hasApiKey: boolean; hasModel: boolean },
+  settings: AppSettings
+) => {
+  if (!provider.hasModel) return false;
+  if (!provider.hasApiKey) return true;
+  return Boolean(settings.providers[provider.key].apiKey?.trim());
+};
 
 export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -26,9 +34,9 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   const [testingProvider, setTestingProvider] = useState<AIProvider | null>(null);
   const [testResult, setTestResult] = useState<{ provider: AIProvider; success: boolean; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [loadingModels, setLoadingModels] = useState<Record<AIProvider, boolean>>({});
-  const [providerModels, setProviderModels] = useState<Record<AIProvider, string[]>>({});
-  const [providerErrors, setProviderErrors] = useState<Record<AIProvider, string>>({});
+  const [loadingModels, setLoadingModels] = useState<Record<AIProvider, boolean>>({} as Record<AIProvider, boolean>);
+  const [providerModels, setProviderModels] = useState<Record<AIProvider, string[]>>({} as Record<AIProvider, string[]>);
+  const [providerErrors, setProviderErrors] = useState<Record<AIProvider, string>>({} as Record<AIProvider, string>);
 
   useEffect(() => {
     if (isOpen) {
@@ -40,7 +48,7 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     if (settings) {
       // Load models for each provider when settings change
       PROVIDERS.forEach(async (p) => {
-        if (p.hasModel) {
+        if (shouldLoadModels(p, settings)) {
           setLoadingModels(prev => ({ ...prev, [p.key]: true }));
           setProviderErrors(prev => ({ ...prev, [p.key]: '' })); // Clear previous error
           try {
@@ -55,6 +63,10 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
           } finally {
             setLoadingModels(prev => ({ ...prev, [p.key]: false }));
           }
+        } else {
+          setLoadingModels(prev => ({ ...prev, [p.key]: false }));
+          setProviderErrors(prev => ({ ...prev, [p.key]: '' }));
+          setProviderModels(prev => ({ ...prev, [p.key]: [] }));
         }
       });
     }
@@ -71,7 +83,8 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     setSettings(updatedSettings);
 
     // Reload models for this provider after API key change
-    if (PROVIDERS.find(p => p.key === provider)?.hasModel) {
+    const providerMeta = PROVIDERS.find(p => p.key === provider);
+    if (providerMeta?.hasModel && shouldLoadModels(providerMeta, updatedSettings)) {
       setLoadingModels(prev => ({ ...prev, [provider]: true }));
       setProviderErrors(prev => ({ ...prev, [provider]: '' })); // Clear previous error
       aiService.getProviderModels(provider, { ...settings.providers[provider], apiKey })
@@ -87,6 +100,10 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         .finally(() => {
           setLoadingModels(prev => ({ ...prev, [provider]: false }));
         });
+    } else {
+      setLoadingModels(prev => ({ ...prev, [provider]: false }));
+      setProviderErrors(prev => ({ ...prev, [provider]: '' }));
+      setProviderModels(prev => ({ ...prev, [provider]: [] }));
     }
   };
 

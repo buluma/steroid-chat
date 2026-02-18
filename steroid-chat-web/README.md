@@ -2,6 +2,16 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## Sentry setup
+
+Create a `.env` file in the project root and set:
+
+```bash
+VITE_SENTRY_DSN=your_sentry_dsn
+```
+
+If `VITE_SENTRY_DSN` is not set, Sentry telemetry is disabled.
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh

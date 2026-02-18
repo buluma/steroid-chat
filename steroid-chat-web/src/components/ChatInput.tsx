@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { ChatMessage, FileAttachment, AIProvider } from '../types';
+import { FileAttachment, AIProvider } from '../types';
 import { fileProcessingService } from '../services/fileProcessing';
+import { Sentry, logger } from '../sentry';
 
 interface ChatInputProps {
   onSend: (content: string, attachments?: FileAttachment[]) => void;
@@ -35,7 +36,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, onProviderChange, 
       const processed = await Promise.all(Array.from(files).map(f => fileProcessingService.processFile(f)));
       setAttachments(prev => [...prev, ...processed]);
     } catch (error) {
-      console.error('Error processing file:', error);
+      Sentry.captureException(error);
+      logger.error('Error processing file attachment', {
+        provider: currentProvider,
+      });
     } finally {
       setIsProcessing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -47,7 +51,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, onProviderChange, 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && attachments.length === 0) || disabled) return;
-    onSend(message, attachments);
+    Sentry.startSpan(
+      {
+        op: 'ui.click',
+        name: 'Send Message Button Click',
+      },
+      (span) => {
+        span.setAttribute('provider', currentProvider);
+        span.setAttribute('attachments_count', attachments.length);
+        span.setAttribute('message_length', message.length);
+        onSend(message, attachments);
+      },
+    );
     setMessage('');
     setAttachments([]);
   };
